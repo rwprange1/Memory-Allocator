@@ -1,17 +1,13 @@
 
 #include "main.h"
 
-
 int main(void) {
-    HANDLE our_heap = GetProcessHeap(); //windows sys-call for heap handle
+    HANDLE our_heap = GetProcessHeap();
+    
+    
+    
+  
 
-    if (!our_heap) {
-        printf("Error fetching heap handle");
-        exit(1);
-    }
-
-    void* temp = malloc_new(100);
-    return 0;
 }
 
 
@@ -22,10 +18,11 @@ int main(void) {
 *
 * returns: a void ptr to the chunk of memory
 */
-void* malloc_new(size_t size){
-
-    printf("User is requesting %zu bytes be allocated to the heap", size);
-
+void* malloc_new(SIZE_T size, HANDLE heap){
+    LPVOID chunk = HeapAlloc(heap,HEAP_GENERATE_EXCEPTIONS, size );
+    SIZE_T actualSize = HeapSize(heap, 0, chunk);
+    printf("Malloc block size %zu\n", actualSize);
+    return chunk;
 
 }
 
@@ -37,8 +34,11 @@ void* malloc_new(size_t size){
  *
  * returns: a void pointer to the initialized chunk of memory
  */
-void* calloc_new(size_t num_elements, size_t element_size){
-
+void* calloc_new(SIZE_T num_elements, SIZE_T element_size, HANDLE heap ){
+    LPVOID chunk = HeapAlloc(heap,HEAP_GENERATE_EXCEPTIONS, num_elements * element_size );
+    SIZE_T actualSize = HeapSize(heap, 0, chunk);
+    printf("calloc block size %zu\n", actualSize);
+    return chunk;
 }
 
 
@@ -63,6 +63,12 @@ void* realloc_new(void* ptr,  size_t size){
  *
  * returns: void
  */
-void free_new(void* ptr){
+void free_new(LPVOID ptr, HANDLE heap){
+    BOOL ret = HeapFree(heap, 0, ptr);
+
+    if (ret == 0){
+        printf("There was an error freeing this memory shutting down\n");
+        exit(1);
+    }
 
 }

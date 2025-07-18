@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
+#include <intsafe.h>
 
-void* malloc_new(size_t size);
 
-void* calloc_new(size_t num_elements, size_t element_size);
 
-void* realloc_new(void* ptr,  size_t size);
 
-void free_new(void* ptr);
+
+
+void* malloc_new(SIZE_T size, HANDLE heap);
+
+void* calloc_new(SIZE_T num_elements, SIZE_T element_size, HANDLE heap);
+
+void* realloc_new(void* ptr,  SIZE_T size);
+
+void free_new(LPVOID ptr);
