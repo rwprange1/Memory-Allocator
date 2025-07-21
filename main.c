@@ -2,18 +2,23 @@
 #include "main.h"
 
 int main(void) {
-    HANDLE our_heap = GetProcessHeap();
+
+    _CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_FILE );
+   _CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDOUT );
+   _CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE );
+   _CrtSetReportFile( _CRT_ERROR, _CRTDBG_FILE_STDOUT );
+   _CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE );
+   _CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDOUT );
+
+    struct Memory mem1;
+    struct Memory mem2;
     
-    struct Memory mem1 = malloc_new(5);
-    struct Memory mem2 = calloc_new(5, sizeof(int));
+    enum Errors res;
+ 
     
-    for (int i =0; i < 5; i++){
-        int* a = mem1.ptr;
-        int* b = mem2.ptr;
-        printf("Malloc: %d\n Calloc: %d\n\n", a[i], b[i]);
-    }
     
-  
+    
+    _CrtDumpMemoryLeaks();
     return 1;
 }
 
@@ -35,21 +40,22 @@ struct Memory calloc_new(SIZE_T num_elements, SIZE_T element_size){
 
 
 struct Memory realloc_new(void* ptr,  size_t size){
-      struct Memory a;
+    struct Memory a;
     return a;
 }
 
 
 
 
-void free_new(LPVOID ptr, HANDLE heap){
-    BOOL ret = HeapFree(heap, 0, ptr);
-
+void free_new(struct Memory *mem){
+    HANDLE heap = GetProcessHeap();
+    BOOL ret = HeapFree(heap, 0, mem->ptr);
+   
     if (ret == 0){
-        printf("There was an error freeing this memory shutting down\n");
+        printf("There was an error freeing this memory shutting down\nError: %lu",  GetLastError());
         exit(1);
     }
-
+    mem->free = TRUE;
 }
 
 
@@ -59,30 +65,41 @@ SIZE_T has_space(struct Memory obj){
 }
 
 
-int add_to_mem(struct Memory *obj, void *to_add , SIZE_T size_to_add){
+enum Errors add_to_mem(struct Memory *obj, void *to_add , SIZE_T size_to_add){
     if(!obj->type_size){
         obj->type_size = size_to_add;
     }
     
-    if (obj->free == 1){
-        return 0;
+    if (obj->free == TRUE){
+        return USE_AFTER_FREE;
     }
 
     if(obj->type_size != size_to_add){
-        return -1;
+        return INVALID_TYPE;
     }
 
     
     SIZE_T mem_avail = has_space(*obj);
+    printf("Memory avail: %lu\n", mem_avail);
     if (mem_avail < size_to_add){
-        return -2;
+        return INSUFFIECNT_MEMORY;
     }
 
     memcpy(obj->ptr, to_add, obj->type_size);
+    obj->mem_used = obj->mem_used + size_to_add;
 
-    return 0;
+    return OK;
 }
 
+/*
+    A method to initialize a Memory struct with the given values
+
+    mem_allowed: the size in bytes we have allocated
+    ptr: the pointer to the allocated memory
+
+    returns: a new struct with the given values
+
+*/
 struct Memory new_mem(SIZE_T mem_allowed, LPVOID ptr){
 
     struct Memory mem;
@@ -90,13 +107,41 @@ struct Memory new_mem(SIZE_T mem_allowed, LPVOID ptr){
     mem.mem_allocated = mem_allowed;
     mem.mem_used = 0;
     mem.type_size = 0;
-    mem.free = 0;
+    mem.free = FALSE;
 
     return mem;
 }
 
+
+/*
+    Get a chunk of memory from the heap of size bytes_to_allocate 
+
+    bytes_to_allocate: the number of bytes to request
+
+    returns: a void pointer or LPVOID which points to the allocated memory on the heap
+
+*/
 LPVOID get_chunk(SIZE_T bytes_to_allocate){
     HANDLE heap = GetProcessHeap();
-    return HeapAlloc(heap,HEAP_GENERATE_EXCEPTIONS, bytes_to_allocate);
+    return HeapAlloc(heap, HEAP_GENERATE_EXCEPTIONS, bytes_to_allocate);
+}
 
+
+void print_error_value(enum Errors value){
+    switch (value) {
+        case OK:
+            printf("Safe memory usage\n");
+            break;
+        case USE_AFTER_FREE:
+            printf("Error use after free\n");
+            break;
+        case INVALID_TYPE:
+            printf("Error invalid type usage\n");
+            break;
+        case INSUFFIECNT_MEMORY:
+            printf("Error the memory obj has run out of memory\n");
+            break;    
+
+
+    }
 }
