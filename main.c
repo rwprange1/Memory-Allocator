@@ -1,25 +1,41 @@
 
 #include "main.h"
 
+
+
+
 int main(void) {
-
-    _CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_FILE );
-   _CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDOUT );
-   _CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE );
-   _CrtSetReportFile( _CRT_ERROR, _CRTDBG_FILE_STDOUT );
-   _CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE );
-   _CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDOUT );
-
+    
     struct Memory mem1;
-    struct Memory mem2;
+    struct Memory mem2; 
+
+
+    SIZE_T bytes = 20;
+
+    mem1 = malloc_new(bytes);
+    mem2 = calloc_new(100, sizeof(int));
+
+    for (int i = 0; i < 5; i++){
+        add_to_mem(&mem2, &i, sizeof(i));
+    }
+
+    printf("Size of mem2 before realloc: %lu\n", HeapSize(GetProcessHeap(), 0, mem2.ptr) );
+    int* ptr = mem2.ptr;
+    for (int i = 0; i < 5; i++){
+        printf("%d\n", ptr[i]);
+    }
+
+    mem2 = realloc_new(&mem2, 10);
+    printf("Size of mem2 after realloc: %lu\n", HeapSize(GetProcessHeap(), 0, mem2.ptr) );
+    ptr = mem2.ptr;
+    for (int i = 0; i < 5; i++){
+        printf("%d\n", ptr[i]);
+    }
+
     
-    enum Errors res;
- 
-    
-    
-    
-    _CrtDumpMemoryLeaks();
+   
     return 1;
+   
 }
 
 
@@ -39,9 +55,33 @@ struct Memory calloc_new(SIZE_T num_elements, SIZE_T element_size){
 }
 
 
-struct Memory realloc_new(void* ptr,  size_t size){
-    struct Memory a;
-    return a;
+struct Memory realloc_new(struct Memory *mem,  SIZE_T size){
+    // let windows try to handle the realloc
+    LPVOID chunk = HeapReAlloc(GetProcessHeap(),HEAP_REALLOC_IN_PLACE_ONLY, mem->ptr, size);
+    if (chunk != NULL){
+       return *mem;
+    }
+
+    // if windows cant we will try to 
+    chunk = get_chunk(size);
+
+    if( chunk == NULL){
+        printf("Error getting a chunk of memory from OS");
+        exit(1);
+    }
+
+    if (size > mem->mem_used){
+        memcpy(chunk, mem->ptr, mem->mem_used );
+    }else{
+        memcpy(chunk, mem->ptr, size);
+    }
+
+    free(mem->ptr);
+    mem->ptr = chunk;
+    mem->mem_allocated = size;
+
+  
+    return *mem;
 }
 
 
@@ -80,12 +120,13 @@ enum Errors add_to_mem(struct Memory *obj, void *to_add , SIZE_T size_to_add){
 
     
     SIZE_T mem_avail = has_space(*obj);
-    printf("Memory avail: %lu\n", mem_avail);
     if (mem_avail < size_to_add){
         return INSUFFIECNT_MEMORY;
     }
 
-    memcpy(obj->ptr, to_add, obj->type_size);
+
+    //pointer arithmetic to make sure we are adding the element to the correct 'index'
+    memcpy((char*)obj->ptr + obj->mem_used , to_add, obj->type_size);
     obj->mem_used = obj->mem_used + size_to_add;
 
     return OK;
