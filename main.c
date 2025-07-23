@@ -1,46 +1,30 @@
-
 #include "main.h"
+#include "test.h"
 
 
 
 
 int main(void) {
     
-    struct Memory mem1;
-    struct Memory mem2; 
-
-
-    SIZE_T bytes = 20;
-
-    mem1 = malloc_new(bytes);
-    mem2 = calloc_new(100, sizeof(int));
-
-    for (int i = 0; i < 5; i++){
-        add_to_mem(&mem2, &i, sizeof(i));
-    }
-
-    printf("Size of mem2 before realloc: %lu\n", HeapSize(GetProcessHeap(), 0, mem2.ptr) );
-    int* ptr = mem2.ptr;
-    for (int i = 0; i < 5; i++){
-        printf("%d\n", ptr[i]);
-    }
-
-    mem2 = realloc_new(&mem2, 10);
-    printf("Size of mem2 after realloc: %lu\n", HeapSize(GetProcessHeap(), 0, mem2.ptr) );
-    ptr = mem2.ptr;
-    for (int i = 0; i < 5; i++){
-        printf("%d\n", ptr[i]);
-    }
-
-    
+    test_malloc();
    
+
+    printf("Passes\n");
     return 1;
    
 }
 
+/*
+    Initialize our own
 
+ */
 struct Memory malloc_new(SIZE_T size){
     HANDLE chunk = get_chunk(size);
+
+     if(chunk == NULL){
+        printf("There was an error requesting memory from the OS\n");
+        exit(1);
+    }
     struct Memory mem = new_mem(size, chunk);
     return mem;
 }
@@ -49,6 +33,12 @@ struct Memory malloc_new(SIZE_T size){
 struct Memory calloc_new(SIZE_T num_elements, SIZE_T element_size){
     SIZE_T total_mem = num_elements * element_size;
     HANDLE chunk = get_chunk(total_mem);
+
+    if(chunk == NULL){
+        printf("There was an error requesting memory from the OS\n");
+        exit(1);
+    }
+
     struct Memory mem = new_mem(total_mem, chunk);
     memset(mem.ptr, 0, total_mem);
     return mem;
@@ -64,7 +54,6 @@ struct Memory realloc_new(struct Memory *mem,  SIZE_T size){
 
     // if windows cant we will try to 
     chunk = get_chunk(size);
-
     if( chunk == NULL){
         printf("Error getting a chunk of memory from OS");
         exit(1);
@@ -76,7 +65,11 @@ struct Memory realloc_new(struct Memory *mem,  SIZE_T size){
         memcpy(chunk, mem->ptr, size);
     }
 
-    free(mem->ptr);
+    BOOL ret = HeapFree(GetProcessHeap(), 0, mem->ptr);
+    if (ret == 0){
+        printf("(realloc_new) There was an error freeing this memory shutting down\nError: %lu",  GetLastError());
+        exit(1);
+    }
     mem->ptr = chunk;
     mem->mem_allocated = size;
 
@@ -92,7 +85,7 @@ void free_new(struct Memory *mem){
     BOOL ret = HeapFree(heap, 0, mem->ptr);
    
     if (ret == 0){
-        printf("There was an error freeing this memory shutting down\nError: %lu",  GetLastError());
+        printf("(free_new) There was an error freeing this memory shutting down\nError: %lu",  GetLastError());
         exit(1);
     }
     mem->free = TRUE;
@@ -100,11 +93,16 @@ void free_new(struct Memory *mem){
 
 
 
-SIZE_T has_space(struct Memory obj){
-    return obj.mem_allocated - obj.mem_used;
-}
+/*
+ A helper method to simulate an addition to our memory structure
 
+ obj: the Memory struct to add to
+ to_add: a pointer to the thing we want to add
+ size_to_add: the size in bytes of the thing to add
 
+ returns: an errors enum value which indicates sucessful and erroneous uses of this method
+
+*/
 enum Errors add_to_mem(struct Memory *obj, void *to_add , SIZE_T size_to_add){
     if(!obj->type_size){
         obj->type_size = size_to_add;
@@ -119,7 +117,7 @@ enum Errors add_to_mem(struct Memory *obj, void *to_add , SIZE_T size_to_add){
     }
 
     
-    SIZE_T mem_avail = has_space(*obj);
+    SIZE_T mem_avail = obj->mem_allocated - obj->mem_used;
     if (mem_avail < size_to_add){
         return INSUFFIECNT_MEMORY;
     }
@@ -164,6 +162,11 @@ struct Memory new_mem(SIZE_T mem_allowed, LPVOID ptr){
 */
 LPVOID get_chunk(SIZE_T bytes_to_allocate){
     HANDLE heap = GetProcessHeap();
+
+    if(bytes_to_allocate <= 0){
+        return NULL;
+    }
+
     return HeapAlloc(heap, HEAP_GENERATE_EXCEPTIONS, bytes_to_allocate);
 }
 
